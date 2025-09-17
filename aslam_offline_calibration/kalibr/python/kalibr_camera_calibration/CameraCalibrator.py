@@ -31,14 +31,16 @@ class OptimizationDiverged(Exception):
 class CameraGeometry(object):
     def __init__(self, cameraModel, targetConfig, dataset, geometry=None, verbose=False):
         self.dataset = dataset
-        
+
         self.model = cameraModel
         if geometry is None:
             self.geometry = cameraModel.geometry()
-        
+        else:
+            self.geometry = geometry
+
         if not type(self.geometry) == cameraModel.geometry:
             raise RuntimeError("The type of geometry passed in \"%s\" does not match the model type \"%s\"" % (type(geometry),type(cameraModel.geometry)))
-        
+
         #create the design variables
         self.dv = cameraModel.designVariable(self.geometry)
         self.setDvActiveStatus(True, True, False)

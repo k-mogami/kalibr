@@ -98,6 +98,8 @@ def parseArgs():
     groupCalibrator.add_argument('--mi-tol', type=float, default=0.2, dest='miTol', help='The tolerance on the mutual information for adding an image. Higher means fewer images will be added. Use -1 to force all images. (default: %(default)s)')
     groupCalibrator.add_argument('--no-shuffle', action='store_true', dest='noShuffle', help='Do not shuffle the dataset processing order')
     groupCalibrator.add_argument('--no-init-outlier-rejection', action='store_false', dest='initOutlierRejection', help='Additional argument in RDSS')
+    groupCalibrator.add_argument('--initial-config', dest='initialConfig', default=None,
+                                 help='Optional YAML file providing initial camera intrinsics in camchain format')
 
     outlierSettings = parser.add_argument_group('Outlier filtering options')
     outlierSettings.add_argument('--no-outliers-removal', action='store_false', default=True, dest='removeOutliers', help='Disable corner outlier filtering')
@@ -143,7 +145,7 @@ def parseArgs():
 
 def main():
     parsed = parseArgs()
-    
+
     #logging modes
     if parsed.verbose:
         sm.setLoggingLevel(sm.LoggingLevel.Debug)
@@ -154,6 +156,17 @@ def main():
     signal.signal(signal.SIGINT, signal_exit)
 
     targetConfig = kc.CalibrationTargetParameters(parsed.targetYaml)
+
+    initial_camera_chain = None
+    if parsed.initialConfig is not None:
+        if not os.path.isfile(parsed.initialConfig):
+            sm.logError("Initial config file '{0}' does not exist.".format(parsed.initialConfig))
+            sys.exit(2)
+        try:
+            initial_camera_chain = kc.CameraChainParameters(parsed.initialConfig)
+        except Exception as ex:
+            sm.logError("Failed to load initial config '{0}': {1}".format(parsed.initialConfig, ex))
+            sys.exit(2)
 
     #create camera objects, initialize the intrinsics and extract targets
     cameraList = list()
@@ -170,10 +183,18 @@ def main():
         if modelName in cameraModels:
             #open dataset 
             dataset = initBagDataset(parsed.bagfile, topic, parsed.bag_from_to, parsed.bag_freq)
-        
+
             #create camera
             cameraModel = cameraModels[modelName]
-            cam = kcc.CameraGeometry(cameraModel, targetConfig, dataset, verbose=(parsed.verbose or parsed.showextraction))
+            initial_geometry = None
+            if initial_camera_chain is not None:
+                try:
+                    cam_params = initial_camera_chain.getCameraParameters(cam_id)
+                    initial_geometry = kc.AslamCamera.fromParameters(cam_params).geometry
+                except Exception as ex:
+                    sm.logWarn("Could not apply initial config for cam{0}: {1}".format(cam_id, ex))
+            cam = kcc.CameraGeometry(cameraModel, targetConfig, dataset, geometry=initial_geometry,
+                                     verbose=(parsed.verbose or parsed.showextraction))
                 
             #extract the targets
             multithreading = not (parsed.verbose or parsed.showextraction)
@@ -210,7 +231,7 @@ def main():
        
     #loop to restart the optimization
     restartAttempts=3
-    initOutlierRejection=parsed.initOutlierRejection
+    initOutlierRejection=True
     removedOutlierCorners=list() 
     while True:
         try:
