@@ -97,7 +97,8 @@ def parseArgs():
     groupCalibrator.add_argument('--qr-tol', type=float, default=0.02, dest='qrTol', help='The tolerance on the factors of the QR decomposition (default: %(default)s)')
     groupCalibrator.add_argument('--mi-tol', type=float, default=0.2, dest='miTol', help='The tolerance on the mutual information for adding an image. Higher means fewer images will be added. Use -1 to force all images. (default: %(default)s)')
     groupCalibrator.add_argument('--no-shuffle', action='store_true', dest='noShuffle', help='Do not shuffle the dataset processing order')
-    
+    groupCalibrator.add_argument('--no-init-outlier-rejection', action='store_false', dest='initOutlierRejection', help='Additional argument in RDSS')
+
     outlierSettings = parser.add_argument_group('Outlier filtering options')
     outlierSettings.add_argument('--no-outliers-removal', action='store_false', default=True, dest='removeOutliers', help='Disable corner outlier filtering')
     outlierSettings.add_argument('--no-final-filtering', action='store_false', default=True, dest='allowEndFiltering', help='Disable filtering after all views have been processed.')
@@ -209,7 +210,7 @@ def main():
        
     #loop to restart the optimization
     restartAttempts=3
-    initOutlierRejection=True
+    initOutlierRejection=parsed.initOutlierRejection
     removedOutlierCorners=list() 
     while True:
         try:
